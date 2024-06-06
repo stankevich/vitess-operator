@@ -61,6 +61,44 @@ func (f Flags) FormatArgs() []string {
 	return args
 }
 
+// FormatArgsConvertBoolean returns the flags as a flattened list of
+// command-line args with boolean values formatted as `--flag` or `--no-flag`.
+// This format is used by some tools, like mysqld_exporter.
+func (f Flags) FormatArgsConvertBoolean() []string {
+	// Sort flag names so the ordering is deterministic,
+	// which is important when diffing object specs.
+	// This also makes it easier for humans to find things.
+	keys := make([]string, 0, len(f))
+	for key := range f {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// Make formatted args list.
+	args := make([]string, 0, len(f))
+	for _, key := range keys {
+		// These args are passed to the command as a string array,
+		// so we don't need to worry about quotes or escaping.
+		//
+		// We use two dashes (--) even though the standard flag parser
+		// accepts either one or two dashes, because some wrappers like
+		// pflags require two dashes.
+		//
+		// All boolean values are formatted as `--flag` or `--no-flag`.
+		value := f[key]
+		if b, ok := value.(bool); ok {
+			if b {
+				args = append(args, fmt.Sprintf("--%v", key))
+			} else {
+				args = append(args, fmt.Sprintf("--no-%v", key))
+			}
+		} else {
+			args = append(args, fmt.Sprintf("--%v=%v", key, value))
+		}
+	}
+	return args
+}
+
 // Merge sets the given flags, overwriting duplicates.
 func (f Flags) Merge(flags Flags) Flags {
 	for key, value := range flags {
